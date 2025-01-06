@@ -66,6 +66,10 @@ int32_t get_handle(const char *req, char ***array, const int32_t *nums_files)
 	}
 	// translate %20 to space(0x20)
 	decode_req(path);
+	// set html file name into path if path is empty and found != 0
+	if (path[0] == '\0') {
+		strcpy(path, HTML_FILE_NAME);
+	}
 	// check is path in file_name_array
 	for (int i = 0; i < *nums_files; i += 1) {
 		if (strcmp(path, (*array)[i]) == 0) {
