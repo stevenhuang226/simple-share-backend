@@ -8,9 +8,10 @@
 #define POST_REQ 2
 #define POST_MUTIPAT 3
 
+#define FNA_API_REQ -10
+
 #define CLEAN 1
 #define NCLEAN 0
-
 
 #define SETSOCK_FAIL -1
 #define BIND_LSN_FAIL -2

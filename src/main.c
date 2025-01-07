@@ -21,10 +21,12 @@ int server_fd;
 char *static_html;
 char *static_html_header;
 char *static_file_header;
+char *static_api_header;
 
 char shrd_path[] = SHRD_PATH;
 
 int8_t get_req(const int client_fd, char *req_buffer);
+int8_t res_fnajson(const int client_fd);
 
 void cleanup(int lev)
 {
@@ -38,12 +40,15 @@ void cleanup(int lev)
 			free(static_html);
 			free(static_html_header);
 			free(static_file_header);
+			free(static_api_header);
 		case BIND_LSN_FAIL:
 			close(server_fd);
 		case SETSOCK_FAIL:
 			if (lev < 0) {
+				printf("exit with error...\n");
 				exit(EXIT_FAILURE);
 			}
+			printf("exit...\n");
 			exit(EXIT_SUCCESS);
 	}
 }
@@ -74,12 +79,14 @@ int main()
 	static_html = malloc(HTML_FILE_SIZE * sizeof(char));
 	static_html_header = malloc(HTML_HEADER_FILE_SIZE * sizeof(char));
 	static_file_header = malloc(FILE_HEADER_FILE_SIZE * sizeof(char));
+	static_api_header = malloc(API_HEADER_FILE_SIZE * sizeof(char));
 	if (static_html == NULL || static_html_header == NULL || static_file_header == NULL) {
 		cleanup(BIND_LSN_FAIL);
 	}
 	if (file2buffer(static_html, HTML_FILE_SIZE, HTML_FILE_NAME) < 0 ||
 		file2buffer(static_html_header, HTML_HEADER_FILE_SIZE, HTML_HEADER_FILE_NAME) < 0 ||
-		file2buffer(static_file_header, FILE_HEADER_FILE_SIZE, FILE_HEADER_FILE_NAME) < 0)
+		file2buffer(static_file_header, FILE_HEADER_FILE_SIZE, FILE_HEADER_FILE_NAME) < 0 ||
+		file2buffer(static_api_header, API_HEADER_FILE_SIZE, API_HEADER_FILE_NAME) < 0)
 	{
 		cleanup(STATIC_BUFFER_FAIL);
 	}
@@ -132,6 +139,9 @@ int8_t get_req(const int client_fd, char *req_buffer)
 
 	// get file code aka file name in directory
 	int32_t file_code = get_handle(req_buffer, &file_array, &nums_files);
+	if (file_code == FNA_API_REQ) {
+		return res_fnajson(client_fd);
+	}
 	if (file_code < 0) {
 		return ERROR;
 	}
@@ -180,5 +190,47 @@ int8_t get_req(const int client_fd, char *req_buffer)
 
 	free(file_buffer);
 	free(header_buffer);
+	return 0;
+}
+int8_t res_fnajson(const int client_fd)
+{
+	// create response buffer
+	char *res_buffer;
+	res_buffer = malloc(API_RES_BUFFER_SIZE * sizeof(char));
+	if (res_buffer == NULL) {
+		return ERROR;
+	}
+
+	// write json into res_buffer
+	int32_t content_length;
+	if (fna2json(res_buffer, API_RES_BUFFER_SIZE, &content_length, &file_array, &nums_files) < 0) {
+		free(res_buffer);
+		return ERROR;
+	}
+	// create header_buffer
+	char *header_buffer;
+	header_buffer = malloc(API_HEADER_FILE_SIZE * sizeof(char));
+	if (header_buffer == NULL) {
+		free(res_buffer);
+		return ERROR;
+	}
+	// cpy static api header into header_buffer
+	strcpy(header_buffer, static_api_header);
+	// insert content length into header_buffer
+	content_length_insert(header_buffer,
+		API_HEADER_FILE_SIZE - 1,
+		content_length,
+		API_CONTENT_LENGTH_INSERT);
+	// send to cliend
+	if (send(client_fd, header_buffer, strlen(header_buffer), 0) < 0 ||
+		send(client_fd, res_buffer, content_length, 0) < 0)
+	{
+		free(header_buffer);
+		free(res_buffer);
+		return ERROR;
+	}
+	
+	free(header_buffer);
+	free(res_buffer);
 	return 0;
 }
