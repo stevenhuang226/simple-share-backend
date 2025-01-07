@@ -5,8 +5,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <stdio.h> //debug
-
 #include "../config.h"
 #include "../include/define.h"
 #include "../include/function.h"
@@ -69,6 +67,9 @@ int32_t get_handle(const char *req, char ***array, const int32_t *nums_files)
 	// set html file name into path if path is empty and found != 0
 	if (path[0] == '\0') {
 		strcpy(path, HTML_FILE_NAME);
+	}
+	if (strcmp(path, FNA_API_NAME) == 0) {
+		return FNA_API_REQ;
 	}
 	// check is path in file_name_array
 	for (int i = 0; i < *nums_files; i += 1) {

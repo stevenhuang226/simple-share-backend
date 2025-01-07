@@ -4,7 +4,7 @@
 #include "../config.h"
 #include "../include/define.h"
 
-int8_t fna2json(char *buffer, int32_t buffer_size, char ***array, const int32_t *nums_files)
+int8_t fna2json(char *buffer, int32_t buffer_size, int32_t *data_size, char ***array, const int32_t *nums_files)
 {
 	if (buffer == NULL || *array == NULL || buffer_size < 32) {
 		return FILE_NOT_EXISTS;
@@ -30,5 +30,6 @@ int8_t fna2json(char *buffer, int32_t buffer_size, char ***array, const int32_t 
 		buff_ptr += 1;
 	}
 	memcpy(&buffer[buff_ptr-1], "]}", 2);
+	*data_size = buff_ptr + 1;
 	return 0;
 }

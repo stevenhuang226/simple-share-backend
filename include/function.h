@@ -1,7 +1,7 @@
 #include <sys/types.h>
 
 //fna2json.c
-int8_t fna2json(char *buffer, int32_t buffer_size, char ***array, const int32_t *nums_files);
+int8_t fna2json(char *buffer, int32_t buffer_size, int32_t *data_size, char ***array, const int32_t *nums_files);
 //list_file.c
 int8_t dir_file2arr(char ***array, int32_t *nums_files, const char *path, int8_t clean);
 // decoder.c
