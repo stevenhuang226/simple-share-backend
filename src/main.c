@@ -26,6 +26,7 @@ char *static_api_header;
 char shrd_path[] = SHRD_PATH;
 
 int8_t get_req(const int client_fd, char *req_buffer);
+int8_t put_req(const int client_fd, const char *req_buffer);
 int8_t res_fnajson(const int client_fd);
 
 void cleanup(int lev)
@@ -121,7 +122,8 @@ int main()
 		else if (type == GET_REQ) {
 			get_req(client_fd, req_buffer);
 		}
-		else if (type == POST_REQ) {
+		else if (type == PUT_REQ) {
+			put_req(client_fd, req_buffer);
 		}
 
 		close(client_fd);
@@ -232,5 +234,26 @@ int8_t res_fnajson(const int client_fd)
 	
 	free(header_buffer);
 	free(res_buffer);
+	return 0;
+}
+int8_t put_req(const int client_fd, const char *req_buffer)
+{
+	const char *req_fail = "HTTP/1.1 500 Internal Server Error\r\n"
+		"Date: Tue, 08 Jan 2025 12:00:00 GMT\r\n"
+		"Server: ExampleServer/1.0\r\n"
+		"Content-Length: 0\r\n"
+		"Connection: close\r\n"
+		"\r\n";
+	char req_success[] = "HTTP/1.1 201 Created\r\n"
+		"Date: Tue, 08 Jan 2025 12:00:00 GMT\r\n"
+		"Server: ExampleServer/1.0\r\n"
+		"Content-Length: 0\r\n"
+		"Connection: close\r\n"
+		"\r\n";
+	if (put_handle(req_buffer, SHRD_PATH) < 0) {
+		send(client_fd, req_fail, strlen(req_fail), 0);
+		return ERROR;
+	}
+	send(client_fd, req_success, strlen(req_success), 0);
 	return 0;
 }

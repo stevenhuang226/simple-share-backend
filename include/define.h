@@ -5,8 +5,7 @@
 #define BUFFER_OVERFLOW -4
 
 #define GET_REQ 1
-#define POST_REQ 2
-#define POST_MUTIPAT 3
+#define PUT_REQ 2
 
 #define FNA_API_REQ -10
 

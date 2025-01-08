@@ -27,7 +27,7 @@
 
 // the maximum set as the path buffer in request handle
 #define HDLE_PATH_LEN 8192 // suggest this value bigger then 8192
-#define POST_PATH_LEN 1024 // the maximum path length to save the file(contain SHRD_PATH)
+#define PUT_PATH_LEN 1024 // the maximum path length to save the file(contain SHRD_PATH)
 
 #define CONTENT_FIND_RANGE 8192 // post request handle,
 				    // limited when search the content-long

@@ -33,11 +33,11 @@ ssize_t content_length(const char *buffer, int32_t max_range, int32_t max_offset
 }
 int8_t req_type(const char *buffer)
 {
-	if (buffer[0] == 'G') {
+	if (buffer[0] == 'G' && buffer[1] == 'E' && buffer[2] == 'T') {
 		return GET_REQ;
 	}
-	if (buffer[0] == 'P') {
-		return POST_REQ;
+	if (buffer[0] == 'P' && buffer[1] == 'U' && buffer[2] == 'T') {
+		return PUT_REQ;
 	}
 	return ERROR;
 }
@@ -79,20 +79,20 @@ int32_t get_handle(const char *req, char ***array, const int32_t *nums_files)
 	}
 	return FILE_NOT_EXISTS;
 }
-int8_t post_handle(const char *req, const char *path2save)
+int8_t put_handle(const char *req, const char *path2save)
 {
 	// create path buffer
-	char path[POST_PATH_LEN];
+	char path[PUT_PATH_LEN];
 	// cpy the path2save into path
 	strcpy(path, path2save);
 	size_t path_ptr = strlen(path2save);
 
 	// search end ( space 0x20 )
 	int8_t found = 0;
-	for (int i = 6; i < POST_PATH_LEN + 6; i += 1) {
+	for (int i = 5; i < PUT_PATH_LEN + 5; i += 1) {
 		if (req[i] == ' ') {
-			memcpy(&path[path_ptr], &req[6], i-6);
-			path[i - 6 + path_ptr] = '\0';
+			memcpy(&path[path_ptr], &req[5], i-5);
+			path[i - 5 + path_ptr] = '\0';
 			found = 1;
 			break;
 		}

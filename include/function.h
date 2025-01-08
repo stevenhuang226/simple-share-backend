@@ -10,7 +10,7 @@ void decode_req(char *buffer);
 ssize_t content_length(const char *buffer, int32_t max_range, int32_t max_offset);
 int8_t req_type(const char *buffer); // return GET_REQ/POST_REQ/-1
 int32_t get_handle(const char *req, char ***array, const int32_t *nums_files);
-int8_t post_handle(const char *req, const char *path2save);
+int8_t put_handle(const char *req, const char *path2save);
 // file_buff.c
 int8_t file2buffer(char *buffer, const int32_t buffer_size, const char *path);
 char *buffer_file(const char *path, int32_t *file_size);
