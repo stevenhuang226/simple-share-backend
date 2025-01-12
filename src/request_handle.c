@@ -8,6 +8,7 @@
 #include "../config.h"
 #include "../include/define.h"
 #include "../include/function.h"
+#include "../include/request_types.h"
 
 ssize_t content_length(const char *buffer, int32_t max_range, int32_t max_offset)
 {
@@ -66,10 +67,13 @@ int32_t get_handle(const char *req, char ***array, const int32_t *nums_files)
 	decode_req(path);
 	// set html file name into path if path is empty and found != 0
 	if (path[0] == '\0') {
-		strcpy(path, HTML_FILE_NAME);
+		return HOME_REQ;
 	}
 	if (strcmp(path, FNA_API_NAME) == 0) {
 		return FNA_API_REQ;
+	}
+	if (strcmp(path, JS_FILE_NAME) == 0) {
+		return JS_REQ;
 	}
 	// check is path in file_name_array
 	for (int i = 0; i < *nums_files; i += 1) {

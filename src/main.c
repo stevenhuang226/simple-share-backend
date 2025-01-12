@@ -11,6 +11,8 @@
 #include "../config.h"
 #include "../include/define.h"
 #include "../include/function.h"
+#include "../include/request_types.h"
+#include "../include/http_header.h"
 
 
 char **file_array;
@@ -18,16 +20,13 @@ int32_t nums_files = 0;
 
 int server_fd;
 
-char *static_html;
-char *static_html_header;
-char *static_file_header;
-char *static_api_header;
-
 char shrd_path[] = SHRD_PATH;
 
 int8_t get_req(const int client_fd, char *req_buffer);
+int8_t set_type(const int32_t file_code, struct header *header);
+char *set_file(const int32_t file_code, int32_t *file_size);
+
 int8_t put_req(const int client_fd, const char *req_buffer);
-int8_t res_fnajson(const int client_fd);
 
 void cleanup(int lev)
 {
@@ -37,11 +36,6 @@ void cleanup(int lev)
 				free(file_array[i]);
 			}
 			free(file_array);
-		case STATIC_BUFFER_FAIL:
-			free(static_html);
-			free(static_html_header);
-			free(static_file_header);
-			free(static_api_header);
 		case BIND_LSN_FAIL:
 			close(server_fd);
 		case SETSOCK_FAIL:
@@ -75,21 +69,6 @@ int main()
 	if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0 ||
 		listen(server_fd, 1) < 0) {
 		cleanup(BIND_LSN_FAIL);
-	}
-	// write html, html_header and file_header into buffer
-	static_html = malloc(HTML_FILE_SIZE * sizeof(char));
-	static_html_header = malloc(HTML_HEADER_FILE_SIZE * sizeof(char));
-	static_file_header = malloc(FILE_HEADER_FILE_SIZE * sizeof(char));
-	static_api_header = malloc(API_HEADER_FILE_SIZE * sizeof(char));
-	if (static_html == NULL || static_html_header == NULL || static_file_header == NULL) {
-		cleanup(BIND_LSN_FAIL);
-	}
-	if (file2buffer(static_html, HTML_FILE_SIZE, HTML_FILE_NAME) < 0 ||
-		file2buffer(static_html_header, HTML_HEADER_FILE_SIZE, HTML_HEADER_FILE_NAME) < 0 ||
-		file2buffer(static_file_header, FILE_HEADER_FILE_SIZE, FILE_HEADER_FILE_NAME) < 0 ||
-		file2buffer(static_api_header, API_HEADER_FILE_SIZE, API_HEADER_FILE_NAME) < 0)
-	{
-		cleanup(STATIC_BUFFER_FAIL);
 	}
 
 	for (;;) {
@@ -135,125 +114,150 @@ int main()
 }
 int8_t get_req(const int client_fd, char *req_buffer)
 {
-	// clean or not generate the file_array
+	// generate the file_array
 	int8_t clean = (nums_files > ARRAY_SIZE) ? NCLEAN : CLEAN;
 	dir_file2arr(&file_array, &nums_files, SHRD_PATH, clean);
 
-	// get file code aka file name in directory
+	// create header struct
+
+	struct header *header;
+	header = malloc(sizeof(struct header));
+	if (header == NULL) {
+		return MALLOC_ERR;
+	}
+	// set req_stat 200 ok; connection to NULL
+	strncpy(header->req_stat, "HTTP/1.1 200 OK", HEADER_req_stat_LEN - 1);
+	header->connection[0] = '\0';
+	// get file code aka the index for file name in file_array
 	int32_t file_code = get_handle(req_buffer, &file_array, &nums_files);
-	if (file_code == FNA_API_REQ) {
-		return res_fnajson(client_fd);
-	}
-	if (file_code < 0) {
+	if (set_type(file_code, header) < 0) {
+		free(header);
 		return ERROR;
 	}
-	// create header_buffer
+	int32_t data_size;
+	char *res_buffer;
+	res_buffer = set_file(file_code, &data_size);
+	if (res_buffer == NULL) {
+		free(header);
+		return ERROR;
+	}
+
+	header->content_length = data_size;
+
 	char *header_buffer;
-	header_buffer = malloc(FILE_HEADER_FILE_SIZE * sizeof(char));
+	header_buffer = generate_header(header);
 	if (header_buffer == NULL) {
+		free(header);
+		free(res_buffer);
 		return ERROR;
 	}
-	// cpy the static header data into header_buffer
-	strncpy(header_buffer, static_file_header, FILE_HEADER_FILE_SIZE - 1);
-	// insert the file name into header
-	string_insert(header_buffer,
-		FILE_HEADER_FILE_SIZE,
-		file_array[file_code],
-		FILE_NAME_INSERT);
 
-	// create the full path
-	char path[strlen(shrd_path) + strlen(file_array[file_code]) + 1];
-	// cpy shared path and  file name into path
-	strcpy(path, shrd_path);
-	strcpy(&path[strlen(shrd_path)], file_array[file_code]);
-
-	// create file buffer
-	char *file_buffer;
-	int32_t file_size;
-	file_buffer = buffer_file(path, &file_size);
-	if (file_buffer == NULL) {
-		free(header_buffer);
-		return ERROR;
-	}
-	// insert the file size into header
-	content_length_insert(header_buffer,
-		FILE_HEADER_FILE_SIZE - strlen(file_array[file_code]),
-		file_size,
-		strlen(file_array[file_code]) +  FILE_CONTENT_LENGTH_INSERT);
-	
-	// send to client_fd
-	if (send(client_fd, header_buffer, strlen(header_buffer), 0) < 0 ||
-		send(client_fd, file_buffer, file_size, 0) < 0)
+	if (send(client_fd, header_buffer, header->size, 0) < 0 ||
+		send(client_fd, res_buffer, data_size, 0) < 0)
 	{
-		free(file_buffer);
+		free(header);
+		free(res_buffer);
 		free(header_buffer);
 		return ERROR;
 	}
-
-	free(file_buffer);
+	free(header);
+	free(res_buffer);
 	free(header_buffer);
+	return ERROR;
+}
+int8_t set_type(const int32_t file_code, struct header *header)
+{
+	if (file_code > 0) {
+		strncpy(header->file_name, file_array[file_code], HEADER_file_name_LEN - 1);
+		strncpy(header->content_type, "application/octet-stream", HEADER_content_type_LEN - 1);
+		return 0;
+	}
+	header->file_name[0] = '\0';
+	if (file_code == FNA_API_REQ) {
+		strncpy(header->content_type, "application/json", HEADER_content_type_LEN - 1);
+	}
+	else if (file_code == HOME_REQ) {
+		strncpy(header->content_type, "text/html", HEADER_content_type_LEN - 1);
+	}
+	else if (file_code == JS_REQ) {
+		strncpy(header->content_type, "application/javascript", HEADER_content_type_LEN - 1);
+	}
+	else {
+		return ERROR;
+	}
 	return 0;
 }
-int8_t res_fnajson(const int client_fd)
+char *set_file(const int32_t file_code, int32_t *file_size)
 {
-	// create response buffer
-	char *res_buffer;
-	res_buffer = malloc(API_RES_BUFFER_SIZE * sizeof(char));
-	if (res_buffer == NULL) {
-		return ERROR;
-	}
+	char path[HDLE_PATH_LEN];
+	strncpy(path, SHRD_PATH, HDLE_PATH_LEN - 1);
 
-	// write json into res_buffer
-	int32_t content_length;
-	if (fna2json(res_buffer, API_RES_BUFFER_SIZE, &content_length, &file_array, &nums_files) < 0) {
-		free(res_buffer);
-		return ERROR;
+	int shrd_len = strlen(SHRD_PATH);
+
+	if (file_code >= 0) {
+		strncpy(&path[shrd_len], file_array[file_code], HDLE_PATH_LEN - shrd_len - 1);
 	}
-	// create header_buffer
-	char *header_buffer;
-	header_buffer = malloc(API_HEADER_FILE_SIZE * sizeof(char));
-	if (header_buffer == NULL) {
-		free(res_buffer);
-		return ERROR;
+	else if (file_code == HOME_REQ) {
+		strncpy(&path[shrd_len], HTML_FILE_NAME, HDLE_PATH_LEN - shrd_len - 1);
 	}
-	// cpy static api header into header_buffer
-	strcpy(header_buffer, static_api_header);
-	// insert content length into header_buffer
-	content_length_insert(header_buffer,
-		API_HEADER_FILE_SIZE - 1,
-		content_length,
-		API_CONTENT_LENGTH_INSERT);
-	// send to cliend
-	if (send(client_fd, header_buffer, strlen(header_buffer), 0) < 0 ||
-		send(client_fd, res_buffer, content_length, 0) < 0)
-	{
-		free(header_buffer);
-		free(res_buffer);
-		return ERROR;
+	else if (file_code == JS_REQ) {
+		strncpy(&path[shrd_len], JS_FILE_NAME, HDLE_PATH_LEN - shrd_len - 1);
 	}
-	
-	free(header_buffer);
-	free(res_buffer);
-	return 0;
+	else if (file_code == FNA_API_REQ) {
+		char *buffer;
+		buffer = malloc(API_RES_BUFFER_SIZE * sizeof(char));
+		if (fna2json(buffer, API_RES_BUFFER_SIZE, file_size, &file_array, &nums_files) < 0) {
+			free(buffer);
+			return NULL;
+		}
+		return buffer;
+	}
+	char *file_buffer;
+	file_buffer = buffer_file(path, file_size);
+	return file_buffer;
 }
 int8_t put_req(const int client_fd, const char *req_buffer)
 {
+	struct header *header;
+	header = malloc(sizeof(struct header));
+	/*
 	const char *req_fail = "HTTP/1.1 500 Internal Server Error\r\n"
 		"Date: Tue, 08 Jan 2025 12:00:00 GMT\r\n"
-		"Server: ExampleServer/1.0\r\n"
+		"Server: PotatoServer/1.0\r\n"
 		"Content-Length: 0\r\n"
 		"Connection: close\r\n"
 		"\r\n";
-	char req_success[] = "HTTP/1.1 201 Created\r\n"
+	const char *req_success = "HTTP/1.1 201 Created\r\n"
 		"Date: Tue, 08 Jan 2025 12:00:00 GMT\r\n"
-		"Server: ExampleServer/1.0\r\n"
+		"Server: PotatoServer/1.0\r\n"
 		"Content-Length: 0\r\n"
 		"Connection: close\r\n"
 		"\r\n";
+		*/
+	header->content_type[0] = '\0';
+	header->file_name[0] = '\0';
+	header->content_length = 0;
+	strncpy(header->connection, "close", HEADER_connection_LEN - 1);
+
 	if (put_handle(req_buffer, SHRD_PATH) < 0) {
-		send(client_fd, req_fail, strlen(req_fail), 0);
+		strncpy(header->req_stat, "HTTP/1.1 500 Internal Server Error", HEADER_req_stat_LEN - 1);
+	}
+	else {
+		strncpy(header->req_stat, "HTTP/1.1 201 Created", HEADER_req_stat_LEN - 1);
+	}
+
+	char *header_buffer;
+	header_buffer = generate_header(header);
+	if (header_buffer < 0) {
+		free(header);
 		return ERROR;
 	}
-	send(client_fd, req_success, strlen(req_success), 0);
+	if (send(client_fd, header_buffer, header->size, 0) < 0) {
+		free(header);
+		free(header_buffer);
+		return ERROR;
+	}
+	free(header);
+	free(header_buffer);
 	return 0;
 }

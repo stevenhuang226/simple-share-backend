@@ -7,8 +7,6 @@
 #define GET_REQ 1
 #define PUT_REQ 2
 
-#define FNA_API_REQ -10
-
 #define CLEAN 1
 #define NCLEAN 0
 
