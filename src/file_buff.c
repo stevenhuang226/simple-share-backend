@@ -56,7 +56,7 @@ char *buffer_file(const char *path, int32_t *file_size)
 	ssize_t read_bytes = read(file_fd, buffer, file_stat.st_size);
 	close(file_fd);
 
-	if (read_bytes < 0) {
+	if (read_bytes < 0 || read_bytes != file_stat.st_size) {
 		free(buffer);
 		return NULL;
 	}
