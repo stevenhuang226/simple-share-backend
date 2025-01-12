@@ -7,8 +7,6 @@
 - All placeholders in config.h must be filled, including:
 1. API
 2. HTML_FILE
-3. HTML_HEADER_FILE
-4. FILE_HEADER_FILE
 ## Build
 ```
 make
